@@ -2,6 +2,7 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { Plus, Search, ChevronRight } from 'lucide-vue-next';
 import Pagination from '@sure-zzzzzz/simple-iam-theme-contract/Pagination';
+import DataTable, { type DataTableColumn } from '@sure-zzzzzz/simple-iam-theme-contract/DataTable';
 import ErrorState from '../components/ErrorState.vue';
 import { loadCapabilities, PolicyApiError, type Capabilities } from '../api/policies';
 import {
@@ -107,6 +108,34 @@ function objectLabel(rule: TypedRule): string {
   if (rule.selector === 'DEFAULT') return '全部对象（默认额度）';
   return rule.objectId ?? '';
 }
+/** 表格列声明：多维度视图插入维度列，对象列不设宽吃剩余（契约 DataTable 形态） */
+const ruleColumns = computed<DataTableColumn[]>(() => {
+  const columns: DataTableColumn[] = [
+    { key: 'service', label: '服务', width: '15%' },
+    { key: 'resource', label: '资源', width: '15%' }
+  ];
+  if (showDimensionColumn.value) columns.push({ key: 'dimension', label: '维度', width: '90px' });
+  columns.push(
+    { key: 'selector', label: '范围', width: '100px' },
+    { key: 'object', label: '对象' },
+    { key: 'limits', label: '限额窗口', width: '92px' },
+    { key: 'enabled', label: '状态', width: '96px' },
+    { key: 'actions', label: '操作', width: '76px' });
+  return columns;
+});
+/** 行数据拍平为展示模型，契约缺省单元格按字段直读 */
+const ruleRows = computed(() => rules.value.map(rule => ({
+  id: rule.id,
+  service: rule.serviceCode,
+  resource: rule.resourceCode,
+  dimension: DIMENSION_LABELS[rule.dimension] ?? rule.dimension,
+  selector: rule.selector === 'DEFAULT' ? '默认额度' : '精确对象',
+  object: objectLabel(rule),
+  limits: `${rule.limits.length} 个`,
+  enabled: rule.enabled
+})));
+const ruleEmptyText = computed(() =>
+  Object.values(applied).some(Boolean) ? '没有匹配的规则，请调整筛选条件' : `当前可访问服务暂无${title.value}规则`);
 watch(() => props.view, () => {
   Object.assign(filterForm, { serviceCode: '', resourceCode: '', objectId: '', enabled: '' });
   Object.assign(applied, filterForm);
@@ -153,26 +182,11 @@ onUnmounted(cancel);
         <div class="filter-actions"><button class="button-primary" type="submit"><Search :size="16" aria-hidden="true" />查询</button><button class="button-secondary" type="button" @click="resetFilters">重置</button></div>
       </form>
       <ErrorState v-if="errorMessage" :message="errorMessage" retryable @retry="() => void loadList()" />
-      <p v-if="loading" class="loading-state" role="status">正在加载规则…</p>
-      <template v-else-if="!errorMessage">
-        <div v-if="rules.length" class="responsive-table">
-          <table>
-            <thead><tr><th>服务</th><th>资源</th><th v-if="showDimensionColumn">维度</th><th>范围</th><th>对象</th><th>限额窗口</th><th>状态</th><th class="ops-column">操作</th></tr></thead>
-            <tbody>
-              <tr v-for="rule in rules" :key="rule.id">
-                <td>{{ rule.serviceCode }}</td>
-                <td>{{ rule.resourceCode }}</td>
-                <td v-if="showDimensionColumn">{{ DIMENSION_LABELS[rule.dimension] ?? rule.dimension }}</td>
-                <td>{{ rule.selector === 'DEFAULT' ? '默认额度' : '精确对象' }}</td>
-                <td class="subject-cell">{{ objectLabel(rule) }}</td>
-                <td>{{ rule.limits.length }} 个</td>
-                <td><span class="status-badge" :class="rule.enabled ? 'success' : 'neutral'">{{ rule.enabled ? '已启用' : '已停用' }}</span></td>
-                <td><RouterLink class="table-action" :to="`/policies/typed/${rule.id}?view=${view}`">详情<ChevronRight :size="15" aria-hidden="true" /></RouterLink></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div v-else class="empty-state"><h2>没有匹配的规则</h2><p v-if="Object.values(applied).some(Boolean)">请调整筛选条件。</p><p v-else>当前可访问服务暂无{{ title }}规则。</p></div>
+      <template v-else>
+        <DataTable :columns="ruleColumns" :rows="ruleRows" row-key="id" :loading="loading" :empty-text="ruleEmptyText" scroll-min-width="900px">
+          <template #cell-enabled="{ row }"><span class="status-badge" :class="row.enabled ? 'success' : 'neutral'">{{ row.enabled ? '已启用' : '已停用' }}</span></template>
+          <template #cell-actions="{ row }"><RouterLink class="table-action" :to="`/policies/typed/${row.id}?view=${view}`">详情<ChevronRight :size="15" aria-hidden="true" /></RouterLink></template>
+        </DataTable>
         <div v-if="total" class="pagination-row" :data-total-pages="totalPages" :inert="loading"><Pagination :current="currentPage" :total="total" :page-size="pageSize" @update:current="changePage" @update:page-size="changePageSize" /></div>
       </template>
     </section>

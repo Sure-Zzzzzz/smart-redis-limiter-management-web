@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { Plus, Search, ChevronRight, SlidersHorizontal } from 'lucide-vue-next';
 import Pagination from '@sure-zzzzzz/simple-iam-theme-contract/Pagination';
+import DataTable, { type DataTableColumn } from '@sure-zzzzzz/simple-iam-theme-contract/DataTable';
 import ErrorState from '../components/ErrorState.vue';
 import { loadCapabilities, loadPolicies, PolicyApiError, type Capabilities, type Policy } from '../api/policies';
 const filterForm = reactive({ serviceCode: '', resourceCode: '', subject: '', enabled: '' });
@@ -47,6 +48,28 @@ function searchPolicies(): void { Object.assign(applied, filterForm); currentPag
 function resetFilters(): void { Object.assign(filterForm, { serviceCode: '', resourceCode: '', subject: '', enabled: '' }); searchPolicies(); }
 function changePage(page: number): void { currentPage.value = page; void loadList(); }
 function changePageSize(size: number): void { pageSize.value = size; currentPage.value = 1; void loadList(); }
+/** 表格列声明：对象列不设宽，吃剩余宽度（契约 DataTable 形态） */
+const policyColumns: DataTableColumn[] = [
+  { key: 'service', label: '服务', width: '15%' },
+  { key: 'resource', label: '资源', width: '15%' },
+  { key: 'subject', label: '对象' },
+  { key: 'limits', label: '限额窗口', width: '92px' },
+  { key: 'enabled', label: '状态', width: '96px' },
+  { key: 'version', label: '版本', width: '64px' },
+  { key: 'actions', label: '操作', width: '76px' }
+];
+/** 行数据拍平为展示模型，契约缺省单元格按字段直读 */
+const policyRows = computed(() => policies.value.map(policy => ({
+  id: policy.id,
+  service: policy.key.serviceCode,
+  resource: policy.key.resourceCode,
+  subject: policy.key.subject,
+  limits: `${policy.limits.length} 个`,
+  enabled: policy.enabled,
+  version: String(policy.rowVersion)
+})));
+const policyEmptyText = computed(() =>
+  Object.values(applied).some(Boolean) ? '没有匹配的策略，请调整筛选条件' : '当前可访问服务暂无策略');
 onMounted(() => void loadList());
 onUnmounted(cancel);
 </script>
@@ -64,10 +87,11 @@ onUnmounted(cancel);
         <div class="filter-actions"><button class="button-primary" type="submit"><Search :size="16" aria-hidden="true" />查询</button><button class="button-secondary" type="button" @click="resetFilters">重置</button></div>
       </form>
       <ErrorState v-if="errorMessage" :message="errorMessage" retryable @retry="() => void loadList()" />
-      <p v-if="loading" class="loading-state" role="status">正在加载策略…</p>
-      <template v-else-if="!errorMessage">
-        <div v-if="policies.length" class="responsive-table"><table><thead><tr><th>服务</th><th>资源</th><th>对象</th><th>限额窗口</th><th>状态</th><th>版本</th><th class="ops-column">操作</th></tr></thead><tbody><tr v-for="policy in policies" :key="policy.id"><td>{{ policy.key.serviceCode }}</td><td>{{ policy.key.resourceCode }}</td><td class="subject-cell">{{ policy.key.subject }}</td><td>{{ policy.limits.length }} 个</td><td><span class="status-badge" :class="policy.enabled ? 'success' : 'neutral'">{{ policy.enabled ? '已启用' : '已停用' }}</span></td><td>{{ policy.rowVersion }}</td><td><RouterLink class="table-action" :to="`/policies/${policy.id}`">详情<ChevronRight :size="15" aria-hidden="true" /></RouterLink></td></tr></tbody></table></div>
-        <div v-else class="empty-state"><h2>没有匹配的策略</h2><p v-if="Object.values(applied).some(Boolean)">请调整筛选条件。</p><p v-else>当前可访问服务暂无策略。</p></div>
+      <template v-else>
+        <DataTable :columns="policyColumns" :rows="policyRows" row-key="id" :loading="loading" :empty-text="policyEmptyText" scroll-min-width="900px">
+          <template #cell-enabled="{ row }"><span class="status-badge" :class="row.enabled ? 'success' : 'neutral'">{{ row.enabled ? '已启用' : '已停用' }}</span></template>
+          <template #cell-actions="{ row }"><RouterLink class="table-action" :to="`/policies/${row.id}`">详情<ChevronRight :size="15" aria-hidden="true" /></RouterLink></template>
+        </DataTable>
         <div v-if="totalElements" class="pagination-row" :data-total-pages="totalPages" :inert="loading"><Pagination :current="currentPage" :total="totalElements" :page-size="pageSize" @update:current="changePage" @update:page-size="changePageSize" /></div>
       </template>
     </section>

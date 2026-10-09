@@ -6,6 +6,7 @@
 
 | Web | Management Server Starter | 策略 Core | 运行基线 |
 | --- | --- | --- | --- |
+| 1.0.1 | 2.0.0 | 2.2.0 | Vue 3.5；后端 Spring Boot 2.7.9 / Java 8 |
 | 1.0.0 | 2.0.0 | 2.2.0 | Vue 3.5；后端 Spring Boot 2.7.9 / Java 8 |
 
 本仓仅对应服务器 `portal` 形态。`console`（后端内嵌管理台与本地管理员会话）与本仓不同时开放。运行端通过 HTTP 快照协议消费策略，与本仓不存在制品依赖。
@@ -46,7 +47,7 @@ pnpm test:run
 pnpm build
 ```
 
-部署 `dist/` 到固定地址 `/app/limiter-management/`，门户登记入口为 `/app/limiter-management/index.html`、路由前缀 `/app/limiter-management`、网关将 `/api/limiter/` 去前缀映射到管理服务器 `/api/`（深链与刷新回退到门户壳，由壳重新挂载本应用）。qiankun（门户对子页面的挂载机制）子应用名为 `limiter-management`；门户传入 `container`、`routePrefix`、同源 `apiBase`、`currentUser/getCurrentUser` 与 `theme.current/subscribe`。身份属性仅用于清理身份切换时的页面状态，不用于授予业务权限；主题由公共主题契约 1.0.3 驱动。
+部署 `dist/` 到固定地址 `/app/limiter-management/`，门户登记入口为 `/app/limiter-management/index.html`、路由前缀 `/app/limiter-management`、网关将 `/api/limiter/` 去前缀映射到管理服务器 `/api/`（深链与刷新回退到门户壳，由壳重新挂载本应用）。qiankun（门户对子页面的挂载机制）子应用名为 `limiter-management`；门户传入 `container`、`routePrefix`、同源 `apiBase`、`currentUser/getCurrentUser` 与 `theme.current/subscribe`。身份属性仅用于清理身份切换时的页面状态，不用于授予业务权限；主题由公共主题契约 1.0.4 驱动。
 
 ## 授权与调用
 

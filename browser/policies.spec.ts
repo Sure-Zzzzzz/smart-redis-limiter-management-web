@@ -60,7 +60,7 @@ test('列表筛选、新建、完整更新、启停和删除闭环', async ({ pa
   await expect(page.getByRole('link', { name: '详情' })).toBeVisible();
   await page.getByLabel('资源编码', { exact: true }).fill('absent');
   await page.getByRole('button', { name: '查询', exact: true }).click();
-  await expect(page.getByRole('heading', { name: '没有匹配的策略' })).toBeVisible();
+  await expect(page.getByText('没有匹配的策略', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: '重置', exact: true }).click();
   await expect(page.getByRole('link', { name: '详情' })).toBeVisible();
   await page.screenshot({ path: 'test-results/policies-desktop.png', fullPage: true });
@@ -157,7 +157,7 @@ test('手机表格局部滚动；长对象弹层不溢出，关闭恢复滚动�
   await page.goto('/app/limiter-management/policies');
   await expect(page.getByRole('link', { name: '详情' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  expect(await page.locator('.responsive-table').evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+  expect(await page.locator('.data-table-scroll').evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
   await page.screenshot({ path: 'test-results/policies-mobile.png', fullPage: true });
   await page.getByRole('link', { name: '详情' }).click();
   await page.getByRole('button', { name: '删除策略', exact: true }).click();
@@ -172,7 +172,7 @@ test('后端错误不伪装为空列表且重试可恢复', async ({ page }) => 
   await fixture(page, { fail: 500 });
   await page.goto('/app/limiter-management/policies');
   await expect(page.getByRole('alert')).toContainText('服务暂时不可用');
-  await expect(page.getByRole('heading', { name: '没有匹配的策略' })).toHaveCount(0);
+  await expect(page.getByText('没有匹配的策略', { exact: false })).toHaveCount(0);
   await expect(page.getByRole('button', { name: '重试', exact: true })).toBeVisible();
   expect(page.url()).not.toContain('/oauth2/');
 });

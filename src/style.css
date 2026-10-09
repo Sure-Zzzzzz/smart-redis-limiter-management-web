@@ -36,13 +36,6 @@ label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size
 .filter-actions { margin-left: auto; }
 .panel { background: var(--iam-color-surface); border: 1px solid var(--iam-color-border); border-radius: var(--iam-radius-card); box-shadow: var(--iam-shadow-card); padding: 24px; }
 .panel-heading h2 { margin: 0 0 16px; font-size: 24px; font-weight: 700; }
-.responsive-table { overflow-x: auto; width: 100%; min-width: 0; }
-table { border-collapse: collapse; table-layout: fixed; width: 100%; min-width: 890px; }
-th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--iam-color-border); vertical-align: top; overflow-wrap: anywhere; }
-th { color: var(--iam-color-text-secondary); font-size: 12px; font-weight: 700; }
-th:nth-child(1), th:nth-child(2) { width: 18%; } th:nth-child(3) { width: 25%; } th:nth-child(4) { width: 110px; } th:nth-child(5) { width: 100px; } th:nth-child(6) { width: 80px; } th.ops-column { width: 85px; }
-tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover td { background: var(--iam-color-surface-soft); }
 .table-action { min-height: 22px; font-size: 13px; font-weight: 500; justify-content: flex-start; }
 .table-action:hover { text-decoration: underline; }
 .status-badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }

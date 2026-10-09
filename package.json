@@ -1,10 +1,12 @@
 {
   "name": "@sure-iam/smart-redis-limiter-management-web",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.15.4",
-  "engines": { "node": "^20.19.0 || ^22.13.0 || >=24" },
+  "engines": {
+    "node": "^20.19.0 || ^22.13.0 || >=24"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5182 --strictPort",
     "build": "vite build",
@@ -16,7 +18,7 @@
     "check": "pnpm type-check && pnpm lint && pnpm test:coverage && pnpm build && pnpm test:browser"
   },
   "dependencies": {
-    "@sure-zzzzzz/simple-iam-theme-contract": "1.0.3",
+    "@sure-zzzzzz/simple-iam-theme-contract": "1.0.4",
     "lucide-vue-next": "1.0.0",
     "vite-plugin-qiankun": "1.0.15",
     "vue": "3.5.13",
