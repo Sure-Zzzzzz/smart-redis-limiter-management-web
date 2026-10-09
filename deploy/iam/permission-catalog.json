@@ -1,0 +1,5 @@
+{
+  "pagePermissions": ["smartLimiterPolicy:page"],
+  "apiPermissions": ["smartLimiterPolicy:read", "smartLimiterPolicy:write", "smartLimiterPolicySnapshot:read"],
+  "dataPermissions": [{ "resource": "limiter-policy", "actions": ["read", "write"], "dimensions": [{ "name": "serviceCode", "operators": ["IN"] }] }]
+}

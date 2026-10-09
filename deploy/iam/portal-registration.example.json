@@ -1,0 +1,25 @@
+{
+  "applicationCode": "limiter-management",
+  "displayName": "限流策略",
+  "microfrontendName": "limiter-management",
+  "entry": "https://portal.example.test/app/limiter-management/index.html",
+  "routePrefix": "/app/limiter-management",
+  "apiBase": "/api/limiter",
+  "defaultMenu": "limiter-resources",
+  "menus": [
+    { "code": "limiter-resources", "name": "资源限流", "route": "/policies/resources" },
+    { "code": "limiter-ips", "name": "IP 限流", "route": "/policies/ips" },
+    { "code": "limiter-subjects", "name": "主体限流", "route": "/policies/subjects" },
+    { "code": "limiter-customers", "name": "客户限流", "route": "/policies/customers" },
+    { "code": "limiter-custom", "name": "自定义限流", "route": "/policies/custom" }
+  ],
+  "menuPagePermission": "smartLimiterPolicy:page",
+  "oauth": {
+    "clientId": "limiter-management-web-pkce",
+    "clientType": "PUBLIC",
+    "grantType": "authorization_code",
+    "requireProofKey": true,
+    "redirectUri": "https://portal.example.test/app/limiter-management/oauth-callback",
+    "scopes": ["openid", "profile"]
+  }
+}
