@@ -5,7 +5,7 @@ import { ArrowLeft, Save, Trash2, Power } from 'lucide-vue-next';
 import { loadCapabilities, PolicyApiError, type Capabilities, type PolicyLimit } from '../api/policies';
 import {
   createTypedRule, deleteTypedRule, loadDeclaration, loadDirectoryObjects, loadTypedRule, loadTypedServices,
-  setTypedRuleState, updateTypedRule, DIMENSION_LABELS, VIEW_DIMENSIONS,
+  setTypedRuleState, updateTypedRule, DIMENSION_LABELS, selectorEffectLabel, typedRuleToYaml, VIEW_DIMENSIONS,
   type DirectoryObject, type ServiceDeclaration, type ServiceSummary, type TypedDimension, type TypedRule
 } from '../api/typedPolicies';
 import ErrorState from '../components/ErrorState.vue';
@@ -66,7 +66,7 @@ async function loadAll(): Promise<void> {
         await loadDecl(signal);
       }
       form.dimension = dimensions.value[0];
-      form.selector = form.dimension === 'RESOURCE' ? 'DEFAULT' : 'DEFAULT';
+      form.selector = 'DEFAULT';
     } else {
       const loaded = await loadTypedRule(ruleId.value as string, signal);
       if (own !== sequence) return;
@@ -78,6 +78,17 @@ async function loadAll(): Promise<void> {
         enabled: loaded.enabled, limits: loaded.limits.map(limit => ({ ...limit }))
       });
       services.value = [{ serviceCode: loaded.serviceCode, displayName: loaded.serviceCode }];
+      // 编辑模式回显也用注册表权威名：与列表/下拉同一名字体系（裸码只作悬停回显）
+      try {
+        const allServices = await loadTypedServices(signal);
+        if (own !== sequence) return;
+        const matched = allServices.find(service => service.serviceCode === loaded.serviceCode);
+        if (matched) services.value = [matched];
+      } catch (error) {
+        if (own !== sequence && !(error instanceof PolicyApiError && (error.status === 403 || error.status === 404))) {
+          // 名单拉取失败不阻断详情（回退裸码显示）
+        }
+      }
       declaration.value = {
         serviceCode: loaded.serviceCode, controlMode: 'TYPED_V2', displayName: loaded.serviceCode,
         resources: { [loaded.resourceCode]: [loaded.dimension] },
@@ -111,7 +122,7 @@ async function loadDecl(signal?: AbortSignal): Promise<void> {
       objectOptions.value = await loadDirectoryObjects(form.serviceCode, form.dimension, customType, '', sig);
     }
   } catch (error) {
-    if (own === sequence && !(error instanceof PolicyApiError && (error.status === 403 || error.status === 404))) {
+    if (own !== sequence && !(error instanceof PolicyApiError && (error.status === 403 || error.status === 404))) {
       errorMessage.value = error instanceof Error ? error.message : '目录加载失败';
     }
   }
@@ -124,6 +135,21 @@ const resourceOptions = computed(() => {
     .filter(code => decl.resources[code]?.includes(form.dimension));
 });
 const namespace = computed(() => declaration.value?.namespaces[form.dimension] ?? '');
+/** 当前选择+维度下的效果提示：保存前就让用户知道这条规则会怎么计数 */
+const selectorHint = computed(() => selectorEffectLabel(form.selector, form.dimension));
+/** 分段卡片两选项的标题与说明（按维度动态） */
+const selectorOptions = computed(() => [
+  {
+    value: 'DEFAULT' as const,
+    title: form.dimension === 'RESOURCE' ? '全资源一份总量' : '每个对象各一份额度',
+    description: selectorEffectLabel('DEFAULT', form.dimension)
+  },
+  {
+    value: 'EXACT' as const,
+    title: '只给指定对象单独设额',
+    description: '仅此对象单独计数，其他对象不受这条规则限制'
+  }
+]);
 const selectorLocked = computed(() => form.dimension === 'RESOURCE');
 const objectIsDirectory = computed(() => form.dimension === 'CUSTOMER' && form.selector === 'EXACT');
 
@@ -203,6 +229,18 @@ async function confirmDelete(): Promise<void> {
     deleting.value = false;
   }
 }
+function backToList(): void { router.push(`/policies/${viewKey.value}`); }
+const yamlCopied = ref(false);
+async function copyYaml(): Promise<void> {
+  if (!rule.value) return;
+  try {
+    await navigator.clipboard.writeText(typedRuleToYaml(rule.value));
+    yamlCopied.value = true;
+    setTimeout(() => { yamlCopied.value = false; }, 2000);
+  } catch {
+    // 剪贴板不可用（非安全上下文）时静默保留手动选择复制
+  }
+}
 onMounted(() => void loadAll());
 onUnmounted(cancel);
 </script>
@@ -228,7 +266,7 @@ onUnmounted(cancel);
         <ErrorState v-if="errorMessage" :message="errorMessage" retryable @retry="() => void loadAll()" />
         <form class="drawer-form" @submit.prevent="() => void submit()">
           <section class="assignment-section">
-            <div class="section-heading"><h2>规则标识</h2></div>
+            <div class="section-heading"><h2>基本信息</h2></div>
             <div class="form-grid">
               <label>服务
                 <select v-model="form.serviceCode" :disabled="!isCreate" @change="() => void changeService()">
@@ -241,7 +279,7 @@ onUnmounted(cancel);
                   <option v-for="code in resourceOptions" :key="code" :value="code">{{ code }}</option>
                 </select>
               </label>
-              <label>计数类别
+              <label>计数类别（额度按"每个什么"发放）
                 <select v-model="form.dimension" :disabled="!isCreate || !isSubjects" @change="changeDimension">
                   <option v-for="dimension in dimensions" :key="dimension" :value="dimension">{{ DIMENSION_LABELS[dimension] }}</option>
                 </select>
@@ -251,12 +289,22 @@ onUnmounted(cancel);
                   <option v-for="code in declaration?.customTypes ?? []" :key="code" :value="code">{{ code }}</option>
                 </select>
               </label>
-              <label>范围
-                <select v-model="form.selector" :disabled="!isCreate || selectorLocked">
-                  <option value="DEFAULT">默认额度（每个对象各自计数）</option>
-                  <option value="EXACT" :disabled="selectorLocked">精确对象（单独覆盖额度）</option>
-                </select>
+              <label class="form-grid-span">计数空间
+                <input :value="namespace || '—'" disabled title="由服务目录声明，决定计数键的隔离范围">
+                <span class="field-hint">由服务目录声明，决定计数键的隔离范围</span>
               </label>
+            </div>
+          </section>
+          <section class="assignment-section">
+            <div class="section-heading"><h2>怎么计数</h2></div>
+            <div class="segment-cards" role="radiogroup" aria-label="怎么计数">
+              <label v-for="option in selectorOptions" :key="option.value" class="segment-card" :class="{ active: form.selector === option.value }">
+                <input v-model="form.selector" type="radio" name="selector" :value="option.value" :disabled="!isCreate || (option.value === 'EXACT' && selectorLocked)">
+                <span class="segment-title">{{ option.title }}</span>
+                <span class="segment-desc">{{ option.description }}</span>
+              </label>
+            </div>
+            <div class="form-grid object-grid">
               <label v-if="form.selector === 'EXACT' && form.dimension === 'IP'">IP 地址<input v-model="form.objectId" :disabled="!isCreate" maxlength="45" placeholder="如 203.0.113.7" required></label>
               <label v-else-if="form.selector === 'EXACT' && objectIsDirectory">客户
                 <select v-model="form.objectId" :disabled="!isCreate">
@@ -264,17 +312,27 @@ onUnmounted(cancel);
                   <option v-for="object in objectOptions" :key="object.id" :value="object.id">{{ object.name ?? object.id }}</option>
                 </select>
               </label>
-              <label v-else-if="form.selector === 'EXACT'">对象标识<input v-model="form.objectId" :disabled="!isCreate" maxlength="256" placeholder="稳定对象 ID" required></label>
-              <label>命名空间<input :value="namespace || '—'" disabled title="由服务目录声明"></label>
+              <label v-else-if="form.selector === 'EXACT'">对象标识<input v-model="form.objectId" :disabled="!isCreate" maxlength="256" placeholder="稳定对象 ID（规则按此匹配）" required></label>
             </div>
-          </section>
-          <section class="assignment-section">
-            <div class="section-heading"><h2>启停</h2></div>
-            <label class="checkbox-field"><input v-model="form.enabled" type="checkbox" :disabled="!isCreate">启用该规则（停用不取消其他门禁）</label>
+            <p v-if="!selectorLocked" class="field-hint segment-hint">{{ selectorHint }}</p>
           </section>
           <LimitEditor v-model="form.limits" :disabled="!capabilities?.canWrite" />
-          <div v-if="capabilities?.canWrite" class="form-actions">
-            <button class="button-primary" type="submit" :disabled="submitting || conflict || (isCreate && (!form.serviceCode || !form.resourceCode))"><Save :size="16" aria-hidden="true" />{{ isCreate ? '创建规则' : '保存' }}</button>
+          <section v-if="rule" class="assignment-section yaml-section">
+            <details class="yaml-details">
+              <summary>等价配置（YAML 展示形态）</summary>
+              <div class="yaml-block">
+                <button class="button-ghost yaml-copy" type="button" @click="() => void copyYaml()">{{ yamlCopied ? '已复制' : '复制' }}</button>
+                <pre>{{ typedRuleToYaml(rule) }}</pre>
+              </div>
+              <p class="field-hint">运维直读用展示文本：字段与规则一一对应；运行端实际以快照协议拉取，此格式不用于任何装配。</p>
+            </details>
+          </section>
+          <div v-if="capabilities?.canWrite" class="form-footer">
+            <label v-if="isCreate" class="checkbox-field checkbox-inline"><input v-model="form.enabled" type="checkbox">创建后立即启用</label>
+            <div class="footer-actions">
+              <button class="button-secondary" type="button" @click="backToList">取消</button>
+              <button class="button-primary" type="submit" :disabled="submitting || conflict || (isCreate && (!form.serviceCode || !form.resourceCode))"><Save :size="16" aria-hidden="true" />{{ isCreate ? '创建规则' : '保存' }}</button>
+            </div>
           </div>
         </form>
       </template>

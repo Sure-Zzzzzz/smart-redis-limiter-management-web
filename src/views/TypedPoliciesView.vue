@@ -6,7 +6,8 @@ import DataTable, { type DataTableColumn } from '@sure-zzzzzz/simple-iam-theme-c
 import ErrorState from '../components/ErrorState.vue';
 import { loadCapabilities, PolicyApiError, type Capabilities } from '../api/policies';
 import {
-  DIMENSION_LABELS, loadDeclaration, loadDirectoryObjects, loadTypedRules, loadTypedServices, VIEW_DIMENSIONS, VIEW_HINTS,
+  DIMENSION_LABELS, limitLines, limitSummary, loadDeclaration, loadDirectoryObjects, loadTypedRules,
+  loadTypedServices, selectorShortLabel, VIEW_DIMENSIONS, VIEW_HINTS,
   type DirectoryObject, type ServiceSummary, type TypedRule
 } from '../api/typedPolicies';
 
@@ -104,34 +105,35 @@ function resetFilters(): void {
 }
 function changePage(page: number): void { currentPage.value = page; void loadList(); }
 function changePageSize(size: number): void { pageSize.value = size; currentPage.value = 1; void loadList(); }
-function objectLabel(rule: TypedRule): string {
-  if (rule.selector === 'DEFAULT') return '全部对象（默认额度）';
-  return rule.objectId ?? '';
-}
-/** 表格列声明：多维度视图插入维度列，对象列不设宽吃剩余（契约 DataTable 形态） */
+/** 表格列声明：多维度视图插入维度列；计数方式/限额/状态/操作为固定窄列，对象列吃剩余 */
 const ruleColumns = computed<DataTableColumn[]>(() => {
   const columns: DataTableColumn[] = [
-    { key: 'service', label: '服务', width: '15%' },
-    { key: 'resource', label: '资源', width: '15%' }
+    { key: 'service', label: '服务', width: '16%', nowrap: true },
+    { key: 'resource', label: '资源', width: '18%', nowrap: true }
   ];
-  if (showDimensionColumn.value) columns.push({ key: 'dimension', label: '维度', width: '90px' });
+  if (showDimensionColumn.value) columns.push({ key: 'dimension', label: '计数类别', width: '96px', nowrap: true });
   columns.push(
-    { key: 'selector', label: '范围', width: '100px' },
-    { key: 'object', label: '对象' },
-    { key: 'limits', label: '限额窗口', width: '92px' },
-    { key: 'enabled', label: '状态', width: '96px' },
-    { key: 'actions', label: '操作', width: '76px' });
+    { key: 'selector', label: '计数方式', width: '112px', nowrap: true },
+    { key: 'object', label: '适用对象' },
+    { key: 'limits', label: '限额', width: '128px', align: 'right', nowrap: true },
+    { key: 'enabled', label: '状态', width: '88px' },
+    { key: 'actions', label: '操作', width: '70px' });
   return columns;
 });
-/** 行数据拍平为展示模型，契约缺省单元格按字段直读 */
+/** 行数据拍平为展示模型，特殊单元格由 #cell 插槽渲染（tag/摘要/徽章）；服务列显示权威名（悬停回码） */
+const serviceNames = computed(() => new Map(services.value.map(service => [service.serviceCode, service.displayName])));
 const ruleRows = computed(() => rules.value.map(rule => ({
   id: rule.id,
-  service: rule.serviceCode,
+  service: serviceNames.value.get(rule.serviceCode) ?? rule.serviceCode,
+  serviceCode: rule.serviceCode,
   resource: rule.resourceCode,
-  dimension: DIMENSION_LABELS[rule.dimension] ?? rule.dimension,
-  selector: rule.selector === 'DEFAULT' ? '默认额度' : '精确对象',
-  object: objectLabel(rule),
-  limits: `${rule.limits.length} 个`,
+  dimension: rule.dimension,
+  dimensionLabel: DIMENSION_LABELS[rule.dimension] ?? rule.dimension,
+  selector: selectorShortLabel(rule.selector, rule.dimension),
+  selectorExact: rule.selector === 'EXACT',
+  objectId: rule.objectId,
+  limits: limitSummary(rule.limits),
+  limitsDetail: limitLines(rule.limits),
   enabled: rule.enabled
 })));
 const ruleEmptyText = computed(() =>
@@ -151,43 +153,53 @@ onUnmounted(cancel);
 <template>
   <main class="page" data-page-content>
     <header class="page-header">
-      <div class="title-line"><h1>{{ title }}</h1></div>
+      <div class="page-heading">
+        <h1>{{ title }}</h1>
+        <p class="page-subtitle">{{ VIEW_HINTS[view] }}</p>
+      </div>
       <RouterLink v-if="capabilities?.pageAllowed && capabilities.canWrite" class="button-primary" :to="`/policies/typed/new?view=${view}`"><Plus :size="17" aria-hidden="true" />新建规则</RouterLink>
     </header>
-    <p class="page-subtitle">{{ VIEW_HINTS[view] }}</p>
     <div v-if="forbidden" class="empty-state"><h2>无权访问限流策略</h2><p>请联系应用管理员确认授权。</p></div>
     <section v-else class="panel">
-      <div class="panel-heading"><h2>规则列表<template v-if="!loading && !errorMessage"> {{ total }}</template></h2></div>
-      <form class="filters" @submit.prevent="searchRules">
-        <label>服务
+      <form class="toolbar" @submit.prevent="searchRules">
+        <label class="filter-item">服务
           <select v-model="filterForm.serviceCode" @change="filterForm.resourceCode = ''">
             <option value="">全部服务</option>
             <option v-for="service in services" :key="service.serviceCode" :value="service.serviceCode">{{ service.displayName }}</option>
           </select>
         </label>
-        <label>资源
+        <label class="filter-item">资源
           <select v-model="filterForm.resourceCode" :disabled="!filterForm.serviceCode">
             <option value="">{{ filterForm.serviceCode ? (resources.length ? '全部资源' : '该服务没有此维度的资源') : '请先选择服务' }}</option>
             <option v-for="code in resources" :key="code" :value="code">{{ code }}</option>
           </select>
         </label>
-        <label v-if="objectDirectoryMode">对象
+        <label v-if="objectDirectoryMode" class="filter-item">对象
           <select v-model="filterForm.objectId">
             <option value="">全部对象</option>
             <option v-for="object in objectOptions" :key="object.id" :value="object.id">{{ object.name ?? object.id }}</option>
           </select>
         </label>
-        <label v-else>对象<input v-model="filterForm.objectId" maxlength="256" placeholder="全部对象"></label>
-        <label>状态<select v-model="filterForm.enabled"><option value="">全部状态</option><option value="true">已启用</option><option value="false">已停用</option></select></label>
-        <div class="filter-actions"><button class="button-primary" type="submit"><Search :size="16" aria-hidden="true" />查询</button><button class="button-secondary" type="button" @click="resetFilters">重置</button></div>
+        <label v-else class="filter-item">对象<input v-model="filterForm.objectId" maxlength="256" placeholder="全部对象"></label>
+        <label class="filter-item filter-item-state">状态<select v-model="filterForm.enabled"><option value="">全部状态</option><option value="true">已启用</option><option value="false">已停用</option></select></label>
+        <div class="filter-actions"><button class="button-secondary" type="submit"><Search :size="16" aria-hidden="true" />查询</button><button class="button-ghost" type="button" @click="resetFilters">重置</button></div>
+        <p v-if="!loading && !errorMessage" class="list-count">共 {{ total }} 条</p>
       </form>
       <ErrorState v-if="errorMessage" :message="errorMessage" retryable @retry="() => void loadList()" />
       <template v-else>
-        <DataTable :columns="ruleColumns" :rows="ruleRows" row-key="id" :loading="loading" :empty-text="ruleEmptyText" scroll-min-width="900px">
+        <DataTable :columns="ruleColumns" :rows="ruleRows" row-key="id" :loading="loading" :empty-text="ruleEmptyText" scroll-min-width="860px">
+          <template #cell-service="{ row }"><span class="cell-service" :title="row.serviceCode">{{ row.service }}</span></template>
+          <template #cell-dimension="{ row }"><span class="count-tag">{{ row.dimensionLabel }}</span></template>
+          <template #cell-selector="{ row }"><span class="count-tag" :class="{ accent: row.selectorExact }">{{ row.selector }}</span></template>
+          <template #cell-object="{ row }">
+            <span v-if="row.selectorExact" class="cell-code">{{ row.objectId }}</span>
+            <span v-else class="cell-muted">全体</span>
+          </template>
+          <template #cell-limits="{ row }"><span class="limits-cell" :title="row.limitsDetail">{{ row.limits }}</span></template>
           <template #cell-enabled="{ row }"><span class="status-badge" :class="row.enabled ? 'success' : 'neutral'">{{ row.enabled ? '已启用' : '已停用' }}</span></template>
           <template #cell-actions="{ row }"><RouterLink class="table-action" :to="`/policies/typed/${row.id}?view=${view}`">详情<ChevronRight :size="15" aria-hidden="true" /></RouterLink></template>
         </DataTable>
-        <div v-if="total" class="pagination-row" :data-total-pages="totalPages" :inert="loading"><Pagination :current="currentPage" :total="total" :page-size="pageSize" @update:current="changePage" @update:page-size="changePageSize" /></div>
+        <div v-if="total > pageSize" class="pagination-row" :data-total-pages="totalPages" :inert="loading"><Pagination :current="currentPage" :total="total" :page-size="pageSize" @update:current="changePage" @update:page-size="changePageSize" /></div>
       </template>
     </section>
   </main>

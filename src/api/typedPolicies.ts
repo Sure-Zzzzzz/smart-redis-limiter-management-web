@@ -156,6 +156,91 @@ export const DIMENSION_LABELS: Record<TypedDimension, string> = {
   RESOURCE: '资源', IP: 'IP', USER: '人员', SERVICE: '服务主体', CREDENTIAL: '凭据', CUSTOMER: '客户', CUSTOM: '自定义'
 };
 
+/** 维度的计量单位名（效果句用：额度按"每个什么"发放） */
+export const DIMENSION_UNIT_NOUNS: Record<TypedDimension, string> = {
+  RESOURCE: '该资源',
+  IP: '每个来源 IP',
+  USER: '每位人员',
+  SERVICE: '每个调用服务',
+  CREDENTIAL: '每对凭据',
+  CUSTOMER: '每个客户',
+  CUSTOM: '每个对象'
+};
+
+/** 选择器的效果句（按维度动态生成：告诉用户这条规则实际怎么计数） */
+export function selectorEffectLabel(selector: TypedSelector, dimension: TypedDimension): string {
+  if (selector === 'DEFAULT') {
+    const noun = DIMENSION_UNIT_NOUNS[dimension] ?? '每个对象';
+    return dimension === 'RESOURCE' ? `${noun}总量` : `${noun}各一份额度`;
+  }
+  return '仅此对象，单独设额';
+}
+
+/** 选择器的紧凑标签（列表列/筛选徽章用：短词不换行，拉丁词两侧留空） */
+export function selectorShortLabel(selector: TypedSelector, dimension: TypedDimension): string {
+  if (selector === 'EXACT') return '指定对象';
+  if (dimension === 'RESOURCE') return '全资源总量';
+  const noun: Partial<Record<TypedDimension, string>> = {
+    IP: 'IP', USER: '人员', SERVICE: '服务', CREDENTIAL: '凭据', CUSTOMER: '客户', CUSTOM: '对象'
+  };
+  const word = noun[dimension] ?? '对象';
+  return `按${/[A-Za-z]/.test(word) ? ` ${word} ` : word}分计`;
+}
+
+/** 时间单位换算成秒与中文单字（限额摘要用） */
+const UNIT_SECONDS: Record<string, number> = { SECONDS: 1, MINUTES: 60, HOURS: 3600, DAYS: 86400 };
+const UNIT_SHORT: Record<string, string> = { SECONDS: '秒', MINUTES: '分', HOURS: '时', DAYS: '天' };
+
+/** 一档限额的紧凑摘要："30 次/分" */
+export function limitShortText(limit: PolicyLimit): string {
+  return `${limit.count} 次/${UNIT_SHORT[limit.unit] ?? limit.unit}`;
+}
+
+/** 一条规则的限额摘要：主显最小时间窗的一档，多档追加 "+N 档" */
+export function limitSummary(limits: PolicyLimit[]): string {
+  if (!limits.length) return '—';
+  const primary = [...limits].sort((a, b) => a.window * (UNIT_SECONDS[a.unit] ?? 1) - b.window * (UNIT_SECONDS[b.unit] ?? 1))[0]!;
+  const suffix = limits.length > 1 ? ` +${limits.length - 1} 档` : '';
+  return `${limitShortText(primary)}${suffix}`;
+}
+
+/** 全部档位逐行文案（列表单元格悬停提示用） */
+export function limitLines(limits: PolicyLimit[]): string {
+  return limits.map(limit => limitShortText(limit)).join('；');
+}
+
+/**
+ * 规则的业务侧实装等价 YAML：按运行端 starter 的 typed.gates 配置树拼装
+ * （SmartRedisLimiterProperties.TypedConfig/TypedGateConfig，kebab-case 键名）。
+ * 展示文本供运维对照业务服务实装形态；格式变化由快照测试钉死。
+ */
+export function typedRuleToYaml(rule: TypedRule): string {
+  const gateLines: string[] = [
+    `                  - dimension: ${rule.dimension}`,
+    `                    namespace: ${rule.namespace}`
+  ];
+  if (rule.customType) gateLines.push(`                    custom-type: ${rule.customType}`);
+  gateLines.push('                    limits:');
+  for (const limit of rule.limits) {
+    gateLines.push(`                      - count: ${limit.count}`, `                        window: ${limit.window}`, `                        unit: ${limit.unit}`);
+  }
+  return [
+    'io:',
+    '  github:',
+    '    surezzzzzz:',
+    '      sdk:',
+    '        limiter:',
+    '          redis:',
+    '            smart:',
+    `              me: ${rule.serviceCode}`,
+    '              typed:',
+    '                enabled: true',
+    '                expected-policy-epoch: 1',
+    '                gates:',
+    ...gateLines
+  ].join('\n');
+}
+
 /** 各视图入口覆盖的维度集合（主体页三段合一） */
 export const VIEW_DIMENSIONS: Record<string, TypedDimension[]> = {
   resources: ['RESOURCE'],
@@ -165,11 +250,11 @@ export const VIEW_DIMENSIONS: Record<string, TypedDimension[]> = {
   custom: ['CUSTOM']
 };
 
-/** 各视图的使用提示（页面副标题，说明计数方式与目录可见性） */
+/** 各视图的使用提示（页面副标题：额度按"每个什么"发放 + 名词自解释） */
 export const VIEW_HINTS: Record<string, string> = {
-  resources: '所选资源的全部调用者共用同一份额度；仅列出目录声明了资源维度的服务。',
-  ips: '按来源 IP 分别计数；仅列出目录声明了 IP 维度的服务。',
-  subjects: '按人员、服务主体或凭据分别计数，新建时在表单中选择计数类别。',
-  customers: '同一客户关联的人员与凭据在同一资源内合并计数；精确对象从客户目录选择。',
-  custom: '按宿主声明的业务类型（如设备、渠道）分别计数；类型来自服务目录。'
+  resources: '额度按接口整体发放：该接口的全部调用共用一份总量（如每分钟 3000 次），不区分谁在调。',
+  ips: '额度按来源地址发放：每个 IP 各自一份（如每 IP 每分钟 60 次），防单点狂刷。',
+  subjects: '额度按调用方发放：每位人员、每个调用服务或每对凭据各一份，新建时在表单里选类别。',
+  customers: '额度按客户合并发放：同一客户名下的所有人员与凭据合算一份（区别于主体限流的各算各的）。',
+  custom: '额度按业务对象发放：类型（如设备、渠道）由服务自己声明，每个对象各一份。'
 };

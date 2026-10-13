@@ -69,7 +69,7 @@ test('列表筛选、新建、完整更新、启停和删除闭环', async ({ pa
   await page.getByLabel('资源编码', { exact: true }).fill('read-order');
   await page.getByLabel('对象', { exact: true }).fill('customer-1');
   await expect(page.getByRole('button', { name: '创建策略', exact: true })).toBeEnabled();
-  await page.getByRole('button', { name: '添加窗口' }).click();
+  await page.getByRole('button', { name: '加一档' }).click();
   await page.getByLabel('窗口 2 时长', { exact: true }).fill('2');
   await page.getByRole('button', { name: '创建策略', exact: true }).click();
   await expect(page).toHaveURL(/\/policies\/2$/);
@@ -147,9 +147,9 @@ test('新建服务变更同步关闭旧写权限，最多16窗口', async ({ pag
   await expect(page.getByRole('button', { name: '创建策略', exact: true })).toBeEnabled();
   await page.getByLabel('服务编码', { exact: true }).fill('denied');
   await expect(page.getByRole('button', { name: '创建策略', exact: true })).toBeDisabled();
-  for (let i = 1; i < 16; i++) await page.getByRole('button', { name: '添加窗口' }).click();
+  for (let i = 1; i < 16; i++) await page.getByRole('button', { name: '加一档' }).click();
   await expect(page.getByLabel('窗口 16 时长')).toBeVisible();
-  await expect(page.getByRole('button', { name: '添加窗口' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: '加一档' })).toBeDisabled();
 });
 test('手机表格局部滚动；长对象弹层不溢出，关闭恢复滚动和焦点', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });

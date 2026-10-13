@@ -1,6 +1,6 @@
 {
   "name": "@sure-iam/smart-redis-limiter-management-web",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.15.4",

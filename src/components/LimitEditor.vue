@@ -10,13 +10,19 @@ function updateLimit(index: number, key: 'window' | 'count' | 'unit', value: str
 </script>
 <template>
   <section class="assignment-section">
-    <div class="section-heading"><h2>限额窗口</h2><button v-if="!disabled" class="button-secondary" type="button" :disabled="modelValue.length >= 16" @click="emit('update:modelValue', [...modelValue, { window: 1, unit: 'MINUTES', count: 100 }])"><Plus :size="16" aria-hidden="true" />添加窗口</button></div>
-    <div class="window-labels"><span>时长</span><span>单位</span><span>请求上限</span><span></span></div>
-    <div v-for="(limit, index) in modelValue" :key="index" class="window-row">
+    <div class="section-heading">
+      <h2>限额（最多允许多少次请求）</h2>
+      <button v-if="!disabled" class="button-secondary" type="button" :disabled="modelValue.length >= 16" @click="emit('update:modelValue', [...modelValue, { window: 1, unit: 'MINUTES', count: 100 }])"><Plus :size="16" aria-hidden="true" />加一档</button>
+    </div>
+    <p class="field-hint">每档 = 一个时间窗内的请求上限，多档同时生效，任一档超出即拒绝。</p>
+    <div v-for="(limit, index) in modelValue" :key="index" class="limit-row">
+      <span class="limit-word">每</span>
       <input :aria-label="`窗口 ${index + 1} 时长`" type="number" min="1" step="1" required :disabled="disabled" :value="limit.window" @input="updateLimit(index, 'window', ($event.target as HTMLInputElement).value)">
       <select :aria-label="`窗口 ${index + 1} 单位`" :disabled="disabled" :value="limit.unit" @change="updateLimit(index, 'unit', ($event.target as HTMLSelectElement).value)"><option v-for="unit in units" :key="unit.value" :value="unit.value">{{ unit.label }}</option></select>
-      <input :aria-label="`窗口 ${index + 1} 请求上限`" type="number" min="1" step="1" required :disabled="disabled" :value="limit.count" @input="updateLimit(index, 'count', ($event.target as HTMLInputElement).value)">
-      <button v-if="!disabled" class="icon-button danger" type="button" :disabled="modelValue.length <= 1" :title="`删除窗口 ${index + 1}`" :aria-label="`删除窗口 ${index + 1}`" @click="emit('update:modelValue', modelValue.filter((_, at) => at !== index))"><Trash2 :size="18" aria-hidden="true" /></button><span v-else></span>
+      <span class="limit-word">最多</span>
+      <input class="limit-count" :aria-label="`窗口 ${index + 1} 请求上限`" type="number" min="1" step="1" required :disabled="disabled" :value="limit.count" @input="updateLimit(index, 'count', ($event.target as HTMLInputElement).value)">
+      <span class="limit-word">次</span>
+      <button v-if="!disabled" class="icon-button danger" type="button" :disabled="modelValue.length <= 1" :title="`删除窗口 ${index + 1}`" :aria-label="`删除窗口 ${index + 1}`" @click="emit('update:modelValue', modelValue.filter((_, at) => at !== index))"><Trash2 :size="18" aria-hidden="true" /></button>
     </div>
   </section>
 </template>
