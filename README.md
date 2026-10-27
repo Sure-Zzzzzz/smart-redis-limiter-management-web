@@ -6,6 +6,7 @@
 
 | Web | Management Server Starter | 策略 Core | 运行基线 |
 | --- | --- | --- | --- |
+| 1.0.3 | 2.2.0 | 2.3.0 | Vue 3.5；后端 Spring Boot 2.7.9 / Java 8 |
 | 1.0.2 | 2.1.0 | 2.3.0 | Vue 3.5；后端 Spring Boot 2.7.9 / Java 8 |
 | 1.0.1 | 2.0.0 | 2.2.0 | Vue 3.5；后端 Spring Boot 2.7.9 / Java 8 |
 | 1.0.0 | 2.0.0 | 2.2.0 | Vue 3.5；后端 Spring Boot 2.7.9 / Java 8 |
@@ -50,7 +51,7 @@ pnpm test:run
 pnpm build
 ```
 
-部署 `dist/` 到固定地址 `/app/limiter-management/`，门户登记入口为 `/app/limiter-management/index.html`、路由前缀 `/app/limiter-management`、网关将 `/api/limiter/` 去前缀映射到管理服务器 `/api/`（深链与刷新回退到门户壳，由壳重新挂载本应用）。qiankun（门户对子页面的挂载机制）子应用名为 `limiter-management`；门户传入 `container`、`routePrefix`、同源 `apiBase`、`currentUser/getCurrentUser` 与 `theme.current/subscribe`。身份属性仅用于清理身份切换时的页面状态，不用于授予业务权限；主题由公共主题契约 1.0.4 驱动。
+部署 `dist/` 到本模块自有 Nginx 的 `/app/limiter-management/`，门户登记入口为 `/app/limiter-management/index.html`、路由前缀 `/app/limiter-management`、`targetOrigin=http://limiter-management-web:80`。Gateway 保留 `/api/limiter/` 公共路径并转发到该 Nginx；Nginx 再将其去前缀映射到管理服务器 `/api/`（深链与刷新回退到门户壳，由壳重新挂载本应用）。Java 管理端口不作为 Gateway 或浏览器入口。qiankun（门户对子页面的挂载机制）子应用名为 `limiter-management`；门户传入 `container`、`routePrefix`、同源 `apiBase`、`currentUser/getCurrentUser` 与 `theme.current/subscribe`。身份属性仅用于清理身份切换时的页面状态，不用于授予业务权限；主题由公共主题契约 1.0.4 驱动。
 
 ## 授权与调用
 

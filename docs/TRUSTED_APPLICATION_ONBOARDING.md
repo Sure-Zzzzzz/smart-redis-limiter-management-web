@@ -1,10 +1,10 @@
 # 限流管理可信应用接入
 
-本页面以 Portal（统一门户中的业务子页面）接入，管理宿主运行 `smart-redis-limiter-management-starter:2.0.0` 和 `smart-redis-limiter-core:2.2.0`，Web 为 1.0.0。管理宿主仍为 Spring Boot 2.7.9 / Java 8。本手册示例域名 `portal.example.test` 需替换为部署域名，不填写真实密钥到本仓。
+本页面以 Portal（统一门户中的业务子页面）接入，管理宿主运行 `smart-redis-limiter-management-starter:2.2.0` 和 `smart-redis-limiter-core:2.3.0`，Web 为 1.0.3。管理宿主仍为 Spring Boot 2.7.9 / Java 8。本手册示例域名 `portal.example.test` 需替换为部署域名，不填写真实密钥到本仓。
 
 ## 注册值
 
-在身份系统的可信应用配置页面登记应用编码 `limiter-management`、显示名“限流策略”、微前端名 `limiter-management`、入口 `https://portal.example.test/app/limiter-management/index.html`（页面入口文件形式，与既有门户子应用一致）、路由前缀 `/app/limiter-management`。门户菜单为五个平铺入口：资源限流 `/policies/resources`、IP 限流 `/policies/ips`、主体限流 `/policies/subjects`、客户限流 `/policies/customers`、自定义限流 `/policies/custom`；默认入口落在资源限流。五入口共用菜单权限 `smartLimiterPolicy:page`，不新增权限码。`deploy/iam/portal-registration.example.json` 是这些登记值的对照模板，不是身份服务器批量导入 API 请求体。
+在身份系统的可信应用配置页面登记应用编码 `limiter-management`、显示名“限流策略”、微前端名 `limiter-management`、入口 `/app/limiter-management/index.html`、Gateway `targetOrigin=http://limiter-management-web:80`（页面与 API 共用本模块 Nginx）、路由前缀 `/app/limiter-management`。门户菜单为五个平铺入口：资源限流 `/policies/resources`、IP 限流 `/policies/ips`、主体限流 `/policies/subjects`、客户限流 `/policies/customers`、自定义限流 `/policies/custom`；默认入口落在资源限流。五入口共用菜单权限 `smartLimiterPolicy:page`，不新增权限码。`deploy/iam/portal-registration.example.json` 是这些登记值的对照模板，不是身份服务器批量导入 API 请求体。
 
 登记公共 OAuth Client（浏览器用来发起授权的客户端）`limiter-management-web-pkce`，启用授权码流程及 S256 PKCE（一次性验证码保护授权码交换），回调只登记实际地址 `https://portal.example.test/app/limiter-management/oauth-callback`，scope 为 `openid profile`。公共客户端不能设置 Secret。构建环境 `VITE_LIMITER_PKCE_CLIENT_ID` 必须使用同一客户端 ID。HTTP 部署用同一 HTTP 域名与回调，不能混用 HTTP/HTTPS 或不同端口。
 

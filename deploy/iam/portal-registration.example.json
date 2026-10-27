@@ -2,9 +2,10 @@
   "applicationCode": "limiter-management",
   "displayName": "限流策略",
   "microfrontendName": "limiter-management",
-  "entry": "https://portal.example.test/app/limiter-management/index.html",
+  "entry": "/app/limiter-management/index.html",
   "routePrefix": "/app/limiter-management",
   "apiBase": "/api/limiter",
+  "targetOrigin": "http://limiter-management-web:80",
   "defaultMenu": "limiter-resources",
   "menus": [
     { "code": "limiter-resources", "name": "资源限流", "route": "/policies/resources" },

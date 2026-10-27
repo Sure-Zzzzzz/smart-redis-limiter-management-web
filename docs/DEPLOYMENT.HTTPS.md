@@ -4,41 +4,17 @@ HTTPS（加密的浏览器通信）用于正式部署。TLS（连接加密协议
 
 ## 构建和登记
 
-Web 1.0.0 对应 Management 2.0.0 / Core 2.1.0。设置公共客户端标识 `VITE_LIMITER_PKCE_CLIENT_ID=limiter-management-web-pkce`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，把 `dist` 内容部署到 `/srv/www/app/limiter-management/`。
+Web 1.0.3 对应 Management 2.2.0 / Core 2.3.0。设置公共客户端标识 `VITE_LIMITER_PKCE_CLIENT_ID=limiter-management-web-pkce`，执行 `pnpm install --frozen-lockfile`、`pnpm build`，由 Limiter 自有 Nginx 只读挂载 `dist`。
 
-身份系统登记 PUBLIC（没有Secret的浏览器客户端），启用 authorization_code 授权码和 S256 PKCE（一次性校验保护授权码交换），回调精确为 `https://portal.example.test/app/limiter-management/oauth-callback`，scope 为 `openid profile`。门户入口 `https://portal.example.test/app/limiter-management/`，子应用名 `limiter-management`、路由前缀 `/app/limiter-management`、API前缀 `/api/limiter`，菜单 `/policies`。域名、端口、协议不一致会使回调或issuer（令牌签发者标识）校验失败。
+身份系统登记 PUBLIC（没有Secret的浏览器客户端），启用 authorization_code 授权码和 S256 PKCE（一次性校验保护授权码交换），回调精确为 `https://portal.example.test/app/limiter-management/oauth-callback`，scope 为 `openid profile`。门户入口 `/app/limiter-management/index.html`，子应用名 `limiter-management`、路由前缀 `/app/limiter-management`、API前缀 `/api/limiter`、Gateway `targetOrigin=http://limiter-management-web:80`，菜单 `/policies`。域名、端口、协议不一致会使回调或issuer（令牌签发者标识）校验失败。
 
-## 网关示例
+## 网关形态
 
-合并本应用规则到已有门户 nginx，不覆盖既有身份路由。身份 `/oauth2/authorize` 和 `/oauth2/token` 使用同源现有身份反代；不是业务管理接口。示例内部宿主 `limiter-management:8080`：
-
-```nginx
-server {
-    listen 80;
-    server_name portal.example.test;
-    return 301 https://$host$request_uri;
-}
-server {
-    listen 443 ssl;
-    server_name portal.example.test;
-    ssl_certificate /etc/nginx/tls/portal.fullchain.pem;
-    ssl_certificate_key /etc/nginx/tls/portal.key.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    root /srv/www;
-
-    location /app/limiter-management/ {
-        try_files $uri /app/index.html;
-    }
-    location /api/limiter/ {
-        proxy_pass http://limiter-management:8080/api/;
-        proxy_set_header Host $host;
-        proxy_set_header Authorization $http_authorization;
-        proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
+TLS 只在统一入口终止，业务链路固定为 `IAM Nginx -> Envoy -> limiter-management-web -> limiter-management`。
+IAM Nginx 与 Envoy 不保存本应用的容器或 Java 端口；Envoy 按 IAM 动态目录把 `/app/limiter-management/**`
+与 `/api/limiter/**` 原样转发到 `targetOrigin=http://limiter-management-web:80`。Limiter Web Nginx
+托管页面，并将 `/api/limiter/` 去前缀反代到内部 `limiter-management:8080/api/`；Management Server
+端口不对公网开放。`/oauth2/authorize` 与 `/oauth2/token` 仍由同源 IAM 入口处理。
 
 统一门户集成形态：深链与刷新回退到门户壳 `/app/index.html`（壳按当前地址重新挂载子应用，侧边栏常驻），与既有门户子应用一致；不要回退到子应用自身 index.html。
 

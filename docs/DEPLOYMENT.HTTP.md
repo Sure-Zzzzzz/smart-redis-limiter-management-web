@@ -4,36 +4,19 @@
 
 ## 固定配置
 
-Web 1.0.0 对应 Management 2.0.0 / Core 2.1.0。构建前设置 `VITE_LIMITER_PKCE_CLIENT_ID=limiter-management-web-pkce`，执行 `pnpm install --frozen-lockfile` 与 `pnpm build`，把 `dist` 的内容放到 `/srv/www/app/limiter-management/`。不要在 Web 设置 Secret（服务端密钥）。
+Web 1.0.3 对应 Management 2.2.0 / Core 2.3.0。构建前设置 `VITE_LIMITER_PKCE_CLIENT_ID=limiter-management-web-pkce`，执行 `pnpm install --frozen-lockfile` 与 `pnpm build`，由 Limiter 自有 Nginx 只读挂载 `dist`。不要在 Web 设置 Secret（服务端密钥）。
 
-身份系统登记公共 S256 PKCE（一次性校验保护授权码交换）客户端，回调为 `http://portal.example.test/app/limiter-management/oauth-callback`，授权 scope 为 `openid profile`。门户子应用名 `limiter-management`，入口 `http://portal.example.test/app/limiter-management/`，routePrefix `/app/limiter-management`，apiBase `/api/limiter`，菜单 `/policies`。
+身份系统登记公共 S256 PKCE（一次性校验保护授权码交换）客户端，回调为 `http://portal.example.test/app/limiter-management/oauth-callback`，授权 scope 为 `openid profile`。门户子应用名 `limiter-management`，入口 `/app/limiter-management/index.html`，routePrefix `/app/limiter-management`，apiBase `/api/limiter`，Gateway `targetOrigin=http://limiter-management-web:80`，菜单 `/policies`。
 
 浏览器使用 WebCrypto（浏览器原生安全摘要）生成 S256，普通 HTTP 域名不是安全上下文，浏览器可能禁用该能力。**本机 HTTP 仅用浏览器认可的 loopback 地址（如 `127.0.0.1`），远程 HTTP 若浏览器无 WebCrypto 则必须改为 HTTPS，不建议关闭浏览器安全限制。** 回调、授权客户端与访问地址必须同步替换为实际同一 origin（协议、域名和端口）。
 
-## 网关示例
+## 网关形态
 
-以下仅为本应用 location（按路径匹配的反向代理规则），合并到已有门户 nginx，不覆盖门户或身份系统其他配置。示例内部管理服务地址 `limiter-management:8080`，文件根 `/srv/www`。
-
-```nginx
-server {
-    listen 80;
-    server_name portal.example.test;
-    root /srv/www;
-
-    location /app/limiter-management/ {
-        try_files $uri /app/index.html;
-    }
-    location /api/limiter/ {
-        proxy_pass http://limiter-management:8080/api/;
-        proxy_set_header Host $host;
-        proxy_set_header Authorization $http_authorization;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-    # /oauth2/authorize 与 /oauth2/token 沿用同源身份网关，不能落入上面的业务路径。
-}
-```
+统一入口链路固定为 `IAM Nginx -> Envoy -> limiter-management-web -> limiter-management`。
+IAM Nginx 只处理平台保留路径和通用业务入口，Envoy 根据 IAM 的动态目录把 `/app/limiter-management/**`
+与 `/api/limiter/**` 原样转发到 `targetOrigin=http://limiter-management-web:80`。业务 Web Nginx 托管
+`/app/limiter-management/`，并将 `/api/limiter/` 去前缀反代到内部 `limiter-management:8080/api/`。
+不把 Management Server 端口、Envoy 管理端口或门户文件系统登记为目标，也不在 IAM Nginx 增加本应用专属 location。
 
 统一门户集成形态：深链与刷新回退到门户壳 `/app/index.html`（壳按当前地址重新挂载子应用，侧边栏常驻），与既有门户子应用一致；不要回退到子应用自身 index.html。
 
